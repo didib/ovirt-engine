@@ -97,7 +97,7 @@ class Plugin(plugin.PluginBase):
             osetupcons.RenameEnv.FILES_TO_BE_MODIFIED
         ].extend(
             (
-                oenginecons.FileLocations.OVIRT_ENGINE_PKI_CERT_TEMPLATE[
+                oenginecons.FileLocations.OVIRT_ENGINE_PKI_CERT_TEMPLATE_IN[
                     :-len('.in')],
                 oenginecons.FileLocations.OVIRT_ENGINE_PKI_CERT_CONF,
             )
@@ -325,7 +325,7 @@ class Plugin(plugin.PluginBase):
         localtransaction = transaction.Transaction()
         with localtransaction:
             for config in (
-                oenginecons.FileLocations.OVIRT_ENGINE_PKI_CERT_TEMPLATE[
+                oenginecons.FileLocations.OVIRT_ENGINE_PKI_CERT_TEMPLATE_IN[
                     :-len('.in')],
                 oenginecons.FileLocations.OVIRT_ENGINE_PKI_CERT_CONF
             ):

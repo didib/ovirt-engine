@@ -643,7 +643,7 @@ class Plugin(plugin.PluginBase):
         # The template may change over time, so regenerate.
         #
         aia = None
-        template = oenginecons.FileLocations.OVIRT_ENGINE_PKI_CERT_TEMPLATE[
+        template = oenginecons.FileLocations.OVIRT_ENGINE_PKI_CERT_TEMPLATE_IN[
             :-len('.in')
         ]
         if os.path.exists(template):
@@ -660,8 +660,8 @@ class Plugin(plugin.PluginBase):
             localtransaction = transaction.Transaction()
             with localtransaction:
                 for name in (
-                    oenginecons.FileLocations.OVIRT_ENGINE_PKI_CA_TEMPLATE,
-                    oenginecons.FileLocations.OVIRT_ENGINE_PKI_CERT_TEMPLATE,
+                    oenginecons.FileLocations.OVIRT_ENGINE_PKI_CA_TEMPLATE_IN,
+                    oenginecons.FileLocations.OVIRT_ENGINE_PKI_CERT_TEMPLATE_IN,
                 ):
                     localtransaction.append(
                         filetransaction.FileTransaction(
@@ -787,8 +787,8 @@ class Plugin(plugin.PluginBase):
         localtransaction = transaction.Transaction()
         with localtransaction:
             for name in (
-                oenginecons.FileLocations.OVIRT_ENGINE_PKI_CA_TEMPLATE,
-                oenginecons.FileLocations.OVIRT_ENGINE_PKI_CERT_TEMPLATE,
+                oenginecons.FileLocations.OVIRT_ENGINE_PKI_CA_TEMPLATE_IN,
+                oenginecons.FileLocations.OVIRT_ENGINE_PKI_CERT_TEMPLATE_IN,
             ):
                 localtransaction.append(
                     filetransaction.FileTransaction(
