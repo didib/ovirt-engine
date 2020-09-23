@@ -643,9 +643,7 @@ class Plugin(plugin.PluginBase):
         # The template may change over time, so regenerate.
         #
         aia = None
-        template = oenginecons.FileLocations.OVIRT_ENGINE_PKI_CERT_TEMPLATE_IN[
-            :-len('.in')
-        ]
+        template = oenginecons.FileLocations.OVIRT_ENGINE_PKI_CERT_TEMPLATE
         if os.path.exists(template):
             with open(template) as f:
                 PREFIX = 'caIssuers;URI:'

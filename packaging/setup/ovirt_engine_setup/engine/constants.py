@@ -184,6 +184,14 @@ class FileLocations(object):
         OVIRT_ENGINE_PKIDIR,
         'cert.template.in',
     )
+    OVIRT_ENGINE_PKI_CA_TEMPLATE = os.path.join(
+        OVIRT_ENGINE_PKIDIR,
+        'cacert.template',
+    )
+    OVIRT_ENGINE_PKI_CERT_TEMPLATE = os.path.join(
+        OVIRT_ENGINE_PKIDIR,
+        'cert.template',
+    )
     OVIRT_ENGINE_PKI_CA_CERT_CONF = os.path.join(
         OVIRT_ENGINE_PKIDIR,
         'cacert.conf',
