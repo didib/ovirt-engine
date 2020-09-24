@@ -98,6 +98,7 @@ class Plugin(plugin.PluginBase):
         ].extend(
             (
                 oenginecons.FileLocations.OVIRT_ENGINE_PKI_CERT_TEMPLATE,
+                oenginecons.FileLocations.OVIRT_ENGINE_PKI_QEMU_CERT_TEMPLATE,
                 oenginecons.FileLocations.OVIRT_ENGINE_PKI_CERT_CONF,
             )
         )
@@ -325,6 +326,7 @@ class Plugin(plugin.PluginBase):
         with localtransaction:
             for config in (
                 oenginecons.FileLocations.OVIRT_ENGINE_PKI_CERT_TEMPLATE,
+                oenginecons.FileLocations.OVIRT_ENGINE_PKI_QEMU_CERT_TEMPLATE,
                 oenginecons.FileLocations.OVIRT_ENGINE_PKI_CERT_CONF
             ):
                 with open(config, 'r') as f:
