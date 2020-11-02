@@ -222,11 +222,7 @@ class Plugin(plugin.PluginBase):
             (
                 os.path.join(
                     oenginecons.FileLocations.OVIRT_ENGINE_PKIKEYSDIR,
-                    name,
-                ),
-                os.path.join(
-                    oenginecons.FileLocations.OVIRT_ENGINE_PKICERTSDIR,
-                    name,
+                    '{}.p12'.format(name),
                 ),
             )
         )
