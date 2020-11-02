@@ -34,6 +34,18 @@ from ovirt_engine_setup.engine_common import constants as oengcommcons
 
 from ovirt_setup_lib import dialog
 
+# Shorter names...
+_fl = oenginecons.FileLocations
+_CA_TEMPLATE_IN = _fl.OVIRT_ENGINE_PKI_CA_TEMPLATE_IN
+_CERT_TEMPLATE_IN = _fl.OVIRT_ENGINE_PKI_CERT_TEMPLATE_IN
+_CA_TEMPLATE = _fl.OVIRT_ENGINE_PKI_CA_TEMPLATE
+_CERT_TEMPLATE = _fl.OVIRT_ENGINE_PKI_CERT_TEMPLATE
+_QEMU_CA_TEMPLATE = _fl.OVIRT_ENGINE_PKI_QEMU_CA_TEMPLATE
+_QEMU_CERT_TEMPLATE = _fl.OVIRT_ENGINE_PKI_QEMU_CERT_TEMPLATE
+_CA_CERT_CONF = _fl.OVIRT_ENGINE_PKI_CA_CERT_CONF
+_CERT_CONF = _fl.OVIRT_ENGINE_PKI_CERT_CONF
+_QEMU_CA_CERT_CONF = _fl.OVIRT_ENGINE_PKI_QEMU_CA_CERT_CONF
+_QEMU_CERT_CONF = _fl.OVIRT_ENGINE_PKI_QEMU_CERT_CONF
 
 def _(m):
     return gettext.dgettext(message=m, domain='ovirt-engine-setup')
@@ -386,6 +398,28 @@ class Plugin(plugin.PluginBase):
                         uninstall_files,
                     )
 
+    def _process_aia_template(
+        self,
+        template,
+        output_file,
+        aia,
+        uninstall_files,
+    ):
+        localtransaction = transaction.Transaction()
+        with localtransaction:
+            localtransaction.append(
+                filetransaction.FileTransaction(
+                    name=output_file,
+                    content=outil.processTemplate(
+                        template,
+                        {
+                            '@AIA@': aia,
+                        }
+                    ),
+                    modifiedList=uninstall_files,
+                ),
+            )
+
     def __init__(self, context):
         super(Plugin, self).__init__(context=context)
         self._enabled = False
@@ -638,48 +672,51 @@ class Plugin(plugin.PluginBase):
         # we must preserve this approach.
         # The template may change over time, so regenerate.
         #
-        aia = None
-        template = oenginecons.FileLocations.OVIRT_ENGINE_PKI_CERT_TEMPLATE
-        if os.path.exists(template):
-            with open(template) as f:
-                PREFIX = 'caIssuers;URI:'
-                for line in f.read().splitlines():
-                    if line.startswith('authorityInfoAccess'):
-                        aia = line[line.find(PREFIX)+len(PREFIX):]
-                        break
+        def _get_aia(template):
+            aia = None
+            if os.path.exists(template):
+                with open(template) as f:
+                    PREFIX = 'caIssuers;URI:'
+                    for line in f.read().splitlines():
+                        if line.startswith('authorityInfoAccess'):
+                            aia = line[line.find(PREFIX)+len(PREFIX):]
+                            break
+            return aia
+
+        engine_aia = _get_aia(_CERT_TEMPLATE)
+        qemu_aia = _get_aia(_QEMU_CERT_TEMPLATE)
 
         uninstall_files = []
         self._setupUninstall(uninstall_files)
-        if aia is not None:
-            localtransaction = transaction.Transaction()
-            with localtransaction:
-                for name in (
-                    oenginecons.FileLocations.OVIRT_ENGINE_PKI_CA_TEMPLATE_IN,
-                    oenginecons.FileLocations.OVIRT_ENGINE_PKI_CERT_TEMPLATE_IN,
-                ):
-                    localtransaction.append(
-                        filetransaction.FileTransaction(
-                            name=name[:-len('.in')],
-                            content=outil.processTemplate(
-                                name,
-                                {
-                                    '@AIA@': aia,
-                                }
-                            ),
-                            modifiedList=uninstall_files,
-                        ),
-                    )
-                    localtransaction.append(
-                        filetransaction.FileTransaction(
-                            name=name[:-len('.template.in')] + '.conf',
-                            content=outil.processTemplate(
-                                name,
-                                {
-                                    '@AIA@': aia,
-                                }
-                            ),
-                            modifiedList=uninstall_files,
-                        ),
+        for aia, template_items in {
+            engine_aia: {
+                _CA_TEMPLATE_IN: (
+                    _CA_TEMPLATE,
+                    _CA_CERT_CONF,
+                ),
+                _CERT_TEMPLATE_IN: (
+                    _CERT_TEMPLATE,
+                    _CERT_CONF,
+                ),
+            },
+            qemu_aia: {
+                _CA_TEMPLATE_IN: (
+                    _QEMU_CA_TEMPLATE,
+                    _QEMU_CA_CERT_CONF,
+                ),
+                _CERT_TEMPLATE_IN: (
+                    _QEMU_CERT_TEMPLATE,
+                    _QEMU_CERT_CONF,
+                ),
+            },
+        }.items():
+            for in_template, outputs in template_items.items():
+                if aia is not None:
+                    self._process_aia_template(
+                        template=in_template,
+                        output_file=output,
+                        aia=aia,
+                        uninstall_files=uninstall_files,
                     )
 
         if self.environment[oenginecons.PKIEnv.RENEW]:
