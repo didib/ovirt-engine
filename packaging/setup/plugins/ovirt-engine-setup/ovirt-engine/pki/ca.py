@@ -47,6 +47,30 @@ _CERT_CONF = _fl.OVIRT_ENGINE_PKI_CERT_CONF
 _QEMU_CA_CERT_CONF = _fl.OVIRT_ENGINE_PKI_QEMU_CA_CERT_CONF
 _QEMU_CERT_CONF = _fl.OVIRT_ENGINE_PKI_QEMU_CERT_CONF
 
+# Each of these is a dictionary, where the key is the template
+# and the value is a list of files generated from it
+_ENGINE_TEMPLATES_MAP = {
+    _CA_TEMPLATE_IN: (
+        _CA_TEMPLATE,
+        _CA_CERT_CONF,
+    ),
+    _CERT_TEMPLATE_IN: (
+        _CERT_TEMPLATE,
+        _CERT_CONF,
+    ),
+}
+_QEMU_TEMPLATES_MAP = {
+    _CA_TEMPLATE_IN: (
+        _QEMU_CA_TEMPLATE,
+        _QEMU_CA_CERT_CONF,
+    ),
+    _CERT_TEMPLATE_IN: (
+        _QEMU_CERT_TEMPLATE,
+        _QEMU_CERT_CONF,
+    ),
+}
+
+
 def _(m):
     return gettext.dgettext(message=m, domain='ovirt-engine-setup')
 
@@ -398,27 +422,25 @@ class Plugin(plugin.PluginBase):
                         uninstall_files,
                     )
 
-    def _process_aia_template(
-        self,
-        template,
-        output_file,
-        aia,
-        uninstall_files,
-    ):
+    # Loop over the data in one of *_TEMPLATES_MAP - read the template,
+    # replace aia, write to outputs
+    def _update_templates(self, aia, templates_map, uninstall_files):
         localtransaction = transaction.Transaction()
         with localtransaction:
-            localtransaction.append(
-                filetransaction.FileTransaction(
-                    name=output_file,
-                    content=outil.processTemplate(
-                        template,
-                        {
-                            '@AIA@': aia,
-                        }
-                    ),
-                    modifiedList=uninstall_files,
-                ),
-            )
+            for in_template, outputs in templates_map:
+                if aia is not None:
+                    localtransaction.append(
+                        filetransaction.FileTransaction(
+                            name=output_file,
+                            content=outil.processTemplate(
+                                template,
+                                {
+                                    '@AIA@': aia,
+                                }
+                            ),
+                            modifiedList=uninstall_files,
+                        ),
+                    )
 
     def __init__(self, context):
         super(Plugin, self).__init__(context=context)
@@ -683,41 +705,22 @@ class Plugin(plugin.PluginBase):
                             break
             return aia
 
+        # TODO handle broken aia in engine template
         engine_aia = _get_aia(_CERT_TEMPLATE)
         qemu_aia = _get_aia(_QEMU_CERT_TEMPLATE)
 
         uninstall_files = []
         self._setupUninstall(uninstall_files)
-        for aia, template_items in {
-            engine_aia: {
-                _CA_TEMPLATE_IN: (
-                    _CA_TEMPLATE,
-                    _CA_CERT_CONF,
-                ),
-                _CERT_TEMPLATE_IN: (
-                    _CERT_TEMPLATE,
-                    _CERT_CONF,
-                ),
-            },
-            qemu_aia: {
-                _CA_TEMPLATE_IN: (
-                    _QEMU_CA_TEMPLATE,
-                    _QEMU_CA_CERT_CONF,
-                ),
-                _CERT_TEMPLATE_IN: (
-                    _QEMU_CERT_TEMPLATE,
-                    _QEMU_CERT_CONF,
-                ),
-            },
-        }.items():
-            for in_template, outputs in template_items.items():
-                if aia is not None:
-                    self._process_aia_template(
-                        template=in_template,
-                        output_file=output,
-                        aia=aia,
-                        uninstall_files=uninstall_files,
-                    )
+        self._update_templates(
+            engine_aia,
+            _ENGINE_TEMPLATES_MAP,
+            uninstall_files,
+        )
+        self._update_templates(
+            qemu_aia,
+            _QEMU_TEMPLATES_MAP,
+            uninstall_files,
+        )
 
         if self.environment[oenginecons.PKIEnv.RENEW]:
             for ca_file in self._CA_FILES:
@@ -767,7 +770,8 @@ class Plugin(plugin.PluginBase):
         self._create_ca(
             oenginecons.FileLocations.OVIRT_ENGINE_PKI_ENGINE_CA_CERT,
             oenginecons.FileLocations.OVIRT_ENGINE_PKI_ENGINE_CA_KEY,
-            oenginecons.Const.ENGINE_PKI_CA_URI
+            oenginecons.Const.ENGINE_PKI_CA_URI,
+            _ENGINE_TEMPLATES_MAP,
         )
 
     @plugin.event(
@@ -785,10 +789,11 @@ class Plugin(plugin.PluginBase):
             oenginecons.FileLocations.OVIRT_ENGINE_PKI_ENGINE_QEMU_CA_CERT,
             oenginecons.FileLocations.OVIRT_ENGINE_PKI_ENGINE_QEMU_CA_KEY,
             oenginecons.Const.ENGINE_PKI_QEMU_CA_URI,
+            _QEMU_TEMPLATES_MAP,
             'qemu'
         )
 
-    def _create_ca(self, ca_file, key_file, ca_uri, ou=None):
+    def _create_ca(self, ca_file, key_file, ca_uri, templates_map, ou=None):
         self._enabled = True
 
         # TODO
@@ -815,32 +820,16 @@ class Plugin(plugin.PluginBase):
 
         self.logger.info(_('Creating CA: {}').format(ca_file))
 
-        localtransaction = transaction.Transaction()
-        with localtransaction:
-            for name in (
-                oenginecons.FileLocations.OVIRT_ENGINE_PKI_CA_TEMPLATE_IN,
-                oenginecons.FileLocations.OVIRT_ENGINE_PKI_CERT_TEMPLATE_IN,
-            ):
-                localtransaction.append(
-                    filetransaction.FileTransaction(
-                        name=name[:-len('.in')],
-                        content=outil.processTemplate(
-                            name,
-                            {
-                                '@AIA@': 'http://%s:%s%s' % (
-                                    self.environment[
-                                        osetupcons.ConfigEnv.FQDN
-                                    ],
-                                    self.environment[
-                                        oengcommcons.ConfigEnv.PUBLIC_HTTP_PORT
-                                    ],
-                                    ca_uri,
-                                )
-                            }
-                        ),
-                        modifiedList=uninstall_files,
-                    ),
-                )
+        aia = 'http://{fqdn}:{port}{ca_uri}'.format(
+            fqdn=self.environment[
+                osetupcons.ConfigEnv.FQDN
+            ],
+            port=self.environment[
+                oengcommcons.ConfigEnv.PUBLIC_HTTP_PORT
+            ],
+            ca_uri=ca_uri,
+        )
+        self._update_templates(aia, templates_map, uninstall_files)
 
         self.execute(
             args=(
