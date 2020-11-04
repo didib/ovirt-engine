@@ -774,6 +774,23 @@ class Plugin(plugin.PluginBase):
             _ENGINE_TEMPLATES_MAP,
         )
 
+        uninstall_files = []
+        self._setupUninstall(uninstall_files)
+
+        if not os.path.exists(
+            oengcommcons.FileLocations.OVIRT_ENGINE_PKI_APACHE_CA_CERT
+        ):
+            os.symlink(
+                oenginecons.FileLocations.OVIRT_ENGINE_PKI_ENGINE_CA_CERT,
+                oengcommcons.FileLocations.OVIRT_ENGINE_PKI_APACHE_CA_CERT
+            )
+            uninstall_files.append(
+                oengcommcons.FileLocations.OVIRT_ENGINE_PKI_APACHE_CA_CERT
+            )
+
+        self._enrollCertificates(False, uninstall_files)
+
+
     @plugin.event(
         stage=plugin.Stages.STAGE_MISC,
         name=oenginecons.Stages.QEMU_CA_AVAILABLE,
@@ -866,23 +883,8 @@ class Plugin(plugin.PluginBase):
                 ca_file,
                 key_file,
                 oenginecons.FileLocations.OVIRT_ENGINE_PKI_ENGINE_TRUST_STORE,
-                oenginecons.FileLocations.OVIRT_ENGINE_PKI_CA_CERT_CONF,
-                oenginecons.FileLocations.OVIRT_ENGINE_PKI_CERT_CONF,
             )
         )
-
-        if not os.path.exists(
-            oengcommcons.FileLocations.OVIRT_ENGINE_PKI_APACHE_CA_CERT
-        ):
-            os.symlink(
-                oenginecons.FileLocations.OVIRT_ENGINE_PKI_ENGINE_CA_CERT,
-                oengcommcons.FileLocations.OVIRT_ENGINE_PKI_APACHE_CA_CERT
-            )
-            uninstall_files.append(
-                oengcommcons.FileLocations.OVIRT_ENGINE_PKI_APACHE_CA_CERT
-            )
-
-        self._enrollCertificates(False, uninstall_files)
 
     @plugin.event(
         stage=plugin.Stages.STAGE_MISC,
