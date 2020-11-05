@@ -429,18 +429,19 @@ class Plugin(plugin.PluginBase):
         with localtransaction:
             for in_template, outputs in templates_map:
                 if aia is not None:
-                    localtransaction.append(
-                        filetransaction.FileTransaction(
-                            name=output_file,
-                            content=outil.processTemplate(
-                                template,
-                                {
-                                    '@AIA@': aia,
-                                }
+                    for output_file in outputs:
+                        localtransaction.append(
+                            filetransaction.FileTransaction(
+                                name=output_file,
+                                content=outil.processTemplate(
+                                    in_template,
+                                    {
+                                        '@AIA@': aia,
+                                    }
+                                ),
+                                modifiedList=uninstall_files,
                             ),
-                            modifiedList=uninstall_files,
-                        ),
-                    )
+                        )
 
     def _calculated_aia(self, ca_uri):
         return 'http://{fqdn}:{port}{ca_uri}'.format(
@@ -738,19 +739,22 @@ class Plugin(plugin.PluginBase):
                 )
                 self.logger.info(_('Fixing {}'.format(_CERT_TEMPLATE)))
                 self.dialog.note(_(
-                    'This does not fix existing certificates. See also:\n'
-                    'https://bugzilla.redhat.com/1875386'
+                    'This does not fix existing certificates.'
                 ))
             else:
                 self.logger.warn(
                     _(
                         '{template} has wrong data, but was manually changed '
-                        'after previous engine-setup. Not fixing it. See also: '
-                        'https://bugzilla.redhat.com/1875386'
+                        'after previous engine-setup'
                     ).format(
                         template=_CERT_TEMPLATE,
                     )
                 )
+                self.dialog.note(_('Not fixing it'))
+            self.dialog.note(_(
+                'Not fixing it. See also: '
+                'https://bugzilla.redhat.com/1875386'
+            ))
 
         uninstall_files = []
         self._setupUninstall(uninstall_files)
@@ -832,7 +836,6 @@ class Plugin(plugin.PluginBase):
             )
 
         self._enrollCertificates(False, uninstall_files)
-
 
     @plugin.event(
         stage=plugin.Stages.STAGE_MISC,
