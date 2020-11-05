@@ -442,6 +442,17 @@ class Plugin(plugin.PluginBase):
                         ),
                     )
 
+    def _calculated_aia(self, ca_uri):
+        return 'http://{fqdn}:{port}{ca_uri}'.format(
+            fqdn=self.environment[
+                osetupcons.ConfigEnv.FQDN
+            ],
+            port=self.environment[
+                oengcommcons.ConfigEnv.PUBLIC_HTTP_PORT
+            ],
+            ca_uri=ca_uri,
+        )
+
     def __init__(self, context):
         super(Plugin, self).__init__(context=context)
         self._enabled = False
@@ -694,7 +705,7 @@ class Plugin(plugin.PluginBase):
         # we must preserve this approach.
         # The template may change over time, so regenerate.
         #
-        def _get_aia(template):
+        def _template_aia(template):
             aia = None
             if os.path.exists(template):
                 with open(template) as f:
@@ -706,8 +717,40 @@ class Plugin(plugin.PluginBase):
             return aia
 
         # TODO handle broken aia in engine template
-        engine_aia = _get_aia(_CERT_TEMPLATE)
-        qemu_aia = _get_aia(_QEMU_CERT_TEMPLATE)
+        engine_aia = _template_aia(_CERT_TEMPLATE)
+        qemu_aia = _template_aia(_QEMU_CERT_TEMPLATE)
+        if qemu_aia is None:
+            qemu_aia = self._calculated_aia(
+                oenginecons.Const.ENGINE_PKI_QEMU_CA_URI
+            )
+
+        if 'resource=qemu-ca-certificate' in engine_aia:
+            # In the past, we had a single template for both engine and qemu
+            # CAs, and it pointed at qemu cert.
+            uninstall_info = self.environment[
+                osetupcons.CoreEnv.UNINSTALL_FILES_INFO
+            ].get(_CERT_TEMPLATE)
+            if uninstall_info and not uninstall_info.get("changed"):
+                # It was written by engine-setup and not changed since.
+                # It should be safe to replace it.
+                engine_aia = self._calculated_aia(
+                    oenginecons.Const.ENGINE_PKI_CA_URI
+                )
+                self.logger.info(_('Fixing {}'.format(_CERT_TEMPLATE)))
+                self.dialog.note(_(
+                    'This does not fix existing certificates. See also:\n'
+                    'https://bugzilla.redhat.com/1875386'
+                ))
+            else:
+                self.logger.warn(
+                    _(
+                        '{template} has wrong data, but was manually changed '
+                        'after previous engine-setup. Not fixing it. See also: '
+                        'https://bugzilla.redhat.com/1875386'
+                    ).format(
+                        template=_CERT_TEMPLATE,
+                    )
+                )
 
         uninstall_files = []
         self._setupUninstall(uninstall_files)
@@ -837,16 +880,11 @@ class Plugin(plugin.PluginBase):
 
         self.logger.info(_('Creating CA: {}').format(ca_file))
 
-        aia = 'http://{fqdn}:{port}{ca_uri}'.format(
-            fqdn=self.environment[
-                osetupcons.ConfigEnv.FQDN
-            ],
-            port=self.environment[
-                oengcommcons.ConfigEnv.PUBLIC_HTTP_PORT
-            ],
-            ca_uri=ca_uri,
+        self._update_templates(
+            self._calculated_aia(ca_uri),
+            templates_map,
+            uninstall_files,
         )
-        self._update_templates(aia, templates_map, uninstall_files)
 
         self.execute(
             args=(
