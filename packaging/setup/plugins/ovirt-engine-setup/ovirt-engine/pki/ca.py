@@ -749,10 +749,9 @@ class Plugin(plugin.PluginBase):
                         template=_CERT_TEMPLATE,
                     )
                 )
-                self.dialog.note(_('Not fixing it'))
+                self.dialog.note(_('Not fixing it.'))
             self.dialog.note(_(
-                'Not fixing it. See also: '
-                'https://bugzilla.redhat.com/1875386'
+                'Please see also: https://bugzilla.redhat.com/1875386'
             ))
 
         uninstall_files = []
