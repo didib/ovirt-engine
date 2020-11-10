@@ -427,7 +427,7 @@ class Plugin(plugin.PluginBase):
     def _update_templates(self, aia, templates_map, uninstall_files):
         localtransaction = transaction.Transaction()
         with localtransaction:
-            for in_template, outputs in templates_map:
+            for in_template, outputs in templates_map.items():
                 if aia is not None:
                     for output_file in outputs:
                         localtransaction.append(
@@ -725,7 +725,7 @@ class Plugin(plugin.PluginBase):
                 oenginecons.Const.ENGINE_PKI_QEMU_CA_URI
             )
 
-        if 'resource=qemu-ca-certificate' in engine_aia:
+        if engine_aia and 'resource=qemu-ca-certificate' in engine_aia:
             # In the past, we had a single template for both engine and qemu
             # CAs, and it pointed at qemu cert.
             uninstall_info = self.environment[
