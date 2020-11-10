@@ -717,7 +717,6 @@ class Plugin(plugin.PluginBase):
                             break
             return aia
 
-        # TODO handle broken aia in engine template
         engine_aia = _template_aia(_CERT_TEMPLATE)
         qemu_aia = _template_aia(_QEMU_CERT_TEMPLATE)
         if qemu_aia is None:
