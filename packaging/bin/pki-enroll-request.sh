@@ -125,6 +125,7 @@ while [ -n "$1" ]; do
 done
 
 [ -n "${NAME}" ] || die "Please specify name"
+common_set_conf_vars
 
 # cannot use TMPDIR as we want the
 # same file at any environment
