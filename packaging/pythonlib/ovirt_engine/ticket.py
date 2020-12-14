@@ -6,6 +6,11 @@ from M2Crypto import EVP
 from M2Crypto import X509
 from M2Crypto import Rand
 
+from cryptography import x509
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding
 
 class TicketEncoder():
 
@@ -15,13 +20,22 @@ class TicketEncoder():
 
     def __init__(self, cert, key, lifetime=5):
         self._lifetime = lifetime
-        self._x509 = X509.load_cert(cert)
-        self._pkey = EVP.load_key(key)
+        with open(cert, 'rb') as cert_file:
+            self._x509 = x509.load_pem_x509_certificate(
+                data=cert_file.read(),
+                backend=default_backend(),
+            )
+        with open(key, 'rb') as key_file:
+            self._pkey = serialization.load_pem_private_key(
+                key_file.read(),
+                password=None,
+                backend=default_backend(),
+            )
 
     def encode(self, data):
         d = {
             'salt': base64.b64encode(Rand.rand_bytes(8)).decode('ascii'),
-            'digest': 'sha1',
+            'digest': 'sha256',
             'validFrom': self._formatDate(datetime.datetime.utcnow()),
             'validTo': self._formatDate(
                 datetime.datetime.utcnow() + datetime.timedelta(
@@ -31,19 +45,24 @@ class TicketEncoder():
             'data': data
         }
 
-        self._pkey.reset_context(md=d['digest'])
-        self._pkey.sign_init()
         fields = []
+        data_to_sign = b''
         for k, v in d.items():
             fields.append(k)
-            self._pkey.sign_update(v.encode('utf-8'))
-
+            data_to_sign += v.encode('utf-8')
         d['signedFields'] = ','.join(fields)
-        signature = self._pkey.sign_final()
+        signature = private_key.sign(
+            data_to_sign,
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH
+            ),
+            hashes.SHA256()
+        )
         d['signature'] = base64.b64encode(signature).decode('ascii')
-        d['certificate'] = self._x509.as_pem().decode('utf-8')
-
-        return base64.b64encode(json.dumps(d).encode('utf-8'))
+        d['certificate'] = self._x509.public_bytes(
+            encoding=serialization.Encoding.PEM
+        ).decode('ascii')
 
 
 class TicketDecoder():
