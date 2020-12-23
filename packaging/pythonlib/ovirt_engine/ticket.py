@@ -35,7 +35,7 @@ class TicketEncoder():
     def encode(self, data):
         d = {
             'salt': base64.b64encode(Rand.rand_bytes(8)).decode('ascii'),
-            'digest': 'sha256',
+            'digest': 'sha1',
             'validFrom': self._formatDate(datetime.datetime.utcnow()),
             'validTo': self._formatDate(
                 datetime.datetime.utcnow() + datetime.timedelta(
@@ -51,18 +51,19 @@ class TicketEncoder():
             fields.append(k)
             data_to_sign += v.encode('utf-8')
         d['signedFields'] = ','.join(fields)
-        signature = private_key.sign(
+        signature = self._pkey.sign(
             data_to_sign,
             padding.PSS(
-                mgf=padding.MGF1(hashes.SHA256()),
+                mgf=padding.MGF1(hashes.SHA1()),
                 salt_length=padding.PSS.MAX_LENGTH
             ),
-            hashes.SHA256()
+            hashes.SHA1()
         )
         d['signature'] = base64.b64encode(signature).decode('ascii')
         d['certificate'] = self._x509.public_bytes(
             encoding=serialization.Encoding.PEM
         ).decode('ascii')
+        return base64.b64encode(json.dumps(d).encode('utf-8'))
 
 
 class TicketDecoder():
