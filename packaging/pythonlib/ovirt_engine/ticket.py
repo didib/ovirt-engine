@@ -53,10 +53,11 @@ class TicketEncoder():
         d['signedFields'] = ','.join(fields)
         signature = self._pkey.sign(
             data_to_sign,
-            padding.PSS(
-                mgf=padding.MGF1(hashes.SHA1()),
-                salt_length=padding.PSS.MAX_LENGTH
-            ),
+            # TODO replace PKCS1v15 with PSS if/when we know we do not
+            # need m2crypto compatibility.
+            padding.PKCS1v15(),
+            # TODO Replace SHA1 with SHA256 if/when we know this is safe,
+            # compatibility-wise (also above).
             hashes.SHA1()
         )
         d['signature'] = base64.b64encode(signature).decode('ascii')
