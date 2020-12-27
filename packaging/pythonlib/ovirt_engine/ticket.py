@@ -77,14 +77,14 @@ class TicketDecoder():
         return datetime.datetime.strptime(d, '%Y%m%d%H%M%S')
 
     @staticmethod
-    def _verifyCertificate(ca, x509):
-        if x509.verify(ca.get_pubkey()) == 0:
+    def _verifyCertificate(ca, x509cert):
+        if x509cert.verify(ca.get_pubkey()) == 0:
             raise ValueError('Untrusted certificate')
 
         if not (
-            x509.get_not_before().get_datetime().replace(tzinfo=None) <=
+            x509cert.get_not_before().get_datetime().replace(tzinfo=None) <=
             datetime.datetime.utcnow() <=
-            x509.get_not_after().get_datetime().replace(tzinfo=None)
+            x509cert.get_not_after().get_datetime().replace(tzinfo=None)
         ):
             raise ValueError('Certificate expired')
 
@@ -99,17 +99,17 @@ class TicketDecoder():
         decoded = json.loads(base64.b64decode(ticket))
 
         if self._peer is not None:
-            x509 = self._peer
+            x509cert = self._peer
         else:
-            x509 = X509.load_cert_string(
+            x509cert = X509.load_cert_string(
                 decoded['certificate'].encode('utf8')
             )
 
         if self._ca is not None:
-            self._verifyCertificate(self._ca, x509)
+            self._verifyCertificate(self._ca, x509cert)
 
         if self._eku is not None:
-            if self._eku not in x509.get_ext(
+            if self._eku not in x509cert.get_ext(
                 'extendedKeyUsage'
             ).get_value().split(','):
                 raise ValueError('Certificate is not authorized for action')
@@ -121,7 +121,7 @@ class TicketDecoder():
         ) == 0:
             raise ValueError('Invalid ticket')
 
-        pkey = x509.get_pubkey()
+        pkey = x509cert.get_pubkey()
         pkey.reset_context(md=decoded['digest'])
         pkey.verify_init()
         for field in signedFields:
