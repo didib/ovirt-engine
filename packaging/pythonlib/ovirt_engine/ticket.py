@@ -7,10 +7,12 @@ from M2Crypto import X509
 from M2Crypto import Rand
 
 from cryptography import x509
+from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric import utils
 
 class TicketEncoder():
 
@@ -78,22 +80,38 @@ class TicketDecoder():
 
     @staticmethod
     def _verifyCertificate(ca, x509cert):
-        if x509cert.verify(ca.get_pubkey()) == 0:
+        try:
+            res = ca.public_key().verify(
+                x509cert.signature,
+                x509cert.tbs_certificate_bytes,
+                padding.PKCS1v15(),
+                x509cert.signature_hash_algorithm,
+            )
+            if res is not None:
+                raise RuntimeError('Certificate validation failed')
+        except InvalidSignature:
             raise ValueError('Untrusted certificate')
 
         if not (
-            x509cert.get_not_before().get_datetime().replace(tzinfo=None) <=
+            x509cert.not_valid_before.replace(tzinfo=None) <=
             datetime.datetime.utcnow() <=
-            x509cert.get_not_after().get_datetime().replace(tzinfo=None)
+            x509cert.not_valid_after.replace(tzinfo=None)
         ):
             raise ValueError('Certificate expired')
 
     def __init__(self, ca, eku, peer=None):
         self._eku = eku
         if peer is not None:
-            self._peer = X509.load_cert_string(peer)
+            self._peer = x509.load_pem_x509_certificate(
+                data=peer.encode(),
+                backend=default_backend(),
+            )
         if ca is not None:
-            self._ca = X509.load_cert(ca)
+            with open(ca, 'rb') as ca_file:
+                self._ca = x509.load_pem_x509_certificate(
+                    data=ca_file.read(),
+                    backend=default_backend(),
+                )
 
     def decode(self, ticket):
         decoded = json.loads(base64.b64decode(ticket))
@@ -101,17 +119,19 @@ class TicketDecoder():
         if self._peer is not None:
             x509cert = self._peer
         else:
-            x509cert = X509.load_cert_string(
-                decoded['certificate'].encode('utf8')
+            x509cert = x509.load_pem_x509_certificate(
+                data=decoded['certificate'].encode('utf8'),
+                backend=default_backend(),
             )
 
         if self._ca is not None:
             self._verifyCertificate(self._ca, x509cert)
 
         if self._eku is not None:
-            if self._eku not in x509cert.get_ext(
-                'extendedKeyUsage'
-            ).get_value().split(','):
+            certekus = x509cert.extensions.get_extension_for_oid(
+                x509.oid.ExtensionOID.EXTENDED_KEY_USAGE
+            ).value
+            if self._eku not in (eku.dotted_string for eku in certekus):
                 raise ValueError('Certificate is not authorized for action')
 
         signedFields = [s.strip() for s in decoded['signedFields'].split(',')]
@@ -121,14 +141,29 @@ class TicketDecoder():
         ) == 0:
             raise ValueError('Invalid ticket')
 
-        pkey = x509cert.get_pubkey()
-        pkey.reset_context(md=decoded['digest'])
-        pkey.verify_init()
+
+        pkey = x509cert.public_key()
+        if decoded['digest'] == 'sha1':
+            md = hashes.SHA1()
+        elif decoded['digest'] == 'sha256':
+            # TODO: Not implemented yet
+            md = hashes.SHA256()
+        else:
+            raise RuntimeError('Unknown message digest algorithm')
+        hasher = hashes.Hash(md, backend=default_backend())
         for field in signedFields:
-            pkey.verify_update(decoded[field].encode('utf8'))
-        if pkey.verify_final(
-            base64.b64decode(decoded['signature'])
-        ) != 1:
+            hasher.update(decoded[field].encode('utf8'))
+        digest = hasher.finalize()
+        try:
+            res = pkey.verify(
+                base64.b64decode(decoded['signature']),
+                digest,
+                padding.PKCS1v15(),
+                utils.Prehashed(md),
+            )
+            if res is not None:
+                raise RuntimeError('Certificate validation failed')
+        except InvalidSignature:
             raise ValueError('Invalid ticket signature')
 
         if not (
