@@ -1,10 +1,7 @@
 import base64
 import datetime
 import json
-
-from M2Crypto import EVP
-from M2Crypto import X509
-from M2Crypto import Rand
+import os
 
 from cryptography import x509
 from cryptography.exceptions import InvalidSignature
@@ -36,7 +33,7 @@ class TicketEncoder():
 
     def encode(self, data):
         d = {
-            'salt': base64.b64encode(Rand.rand_bytes(8)).decode('ascii'),
+            'salt': base64.b64encode(os.urandom(8)).decode('ascii'),
             'digest': 'sha1',
             'validFrom': self._formatDate(datetime.datetime.utcnow()),
             'validTo': self._formatDate(
