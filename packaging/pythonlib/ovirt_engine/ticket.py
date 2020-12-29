@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.asymmetric import utils
 
+
 class TicketEncoder():
 
     @staticmethod
@@ -137,7 +138,6 @@ class TicketDecoder():
             set(signedFields)
         ) == 0:
             raise ValueError('Invalid ticket')
-
 
         pkey = x509cert.public_key()
         if decoded['digest'] == 'sha1':
