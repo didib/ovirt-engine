@@ -297,7 +297,7 @@ class Plugin(plugin.PluginBase):
         },
     )
 
-    def _expired(self, x509):
+    def _expired(self, x509cert):
         #
         # LEGACY NOTE
         # Since 3.0 and maybe before the CA certificate's
@@ -306,9 +306,9 @@ class Plugin(plugin.PluginBase):
         # in this case we need to reissue CA certificate.
         #
         return (
-            x509.get_not_before().get_datetime().tzname() is None or
+            x509cert.get_not_before().get_datetime().tzname() is None or
             (
-                x509.get_not_after().get_datetime().replace(tzinfo=None) -
+                x509cert.get_not_after().get_datetime().replace(tzinfo=None) -
                 datetime.datetime.utcnow() <
                 datetime.timedelta(days=365)
             )
@@ -316,10 +316,10 @@ class Plugin(plugin.PluginBase):
 
     SAN_extension_name = 'subjectAltName'
 
-    def _has_SAN(self, x509):
+    def _has_SAN(self, x509cert):
         res = False
         try:
-            ext = x509.get_ext(self.SAN_extension_name)
+            ext = x509cert.get_ext(self.SAN_extension_name)
             res = True
             self.logger.debug(
                 '%s: %s',
@@ -333,15 +333,15 @@ class Plugin(plugin.PluginBase):
     def _ok_to_renew_cert(self, pkcs12, name, extract):
         res = False
         if os.path.exists(pkcs12):
-            x509 = self._extractPKCS12Certificate(pkcs12)
-            if x509 and (
-                self._expired(x509) or
-                not self._has_SAN(x509)
+            x509cert = self._extractPKCS12Certificate(pkcs12)
+            if x509cert and (
+                self._expired(x509cert) or
+                not self._has_SAN(x509cert)
             ):
                 if not extract:
                     res = True
                 else:
-                    if x509.verify(
+                    if x509cert.verify(
                         self._x509_load_cert(
                             oenginecons.FileLocations.
                             OVIRT_ENGINE_PKI_ENGINE_CA_CERT
@@ -363,7 +363,7 @@ class Plugin(plugin.PluginBase):
                             )
                         )
 
-                        if x509x.as_pem() == x509.as_pem():
+                        if x509x.as_pem() == x509cert.as_pem():
                             self.logger.debug('certificate is sane')
                             res = True
         return res
@@ -957,7 +957,7 @@ class Plugin(plugin.PluginBase):
         condition=lambda self: self.environment[oenginecons.CoreEnv.ENABLE],
     )
     def _closeup(self):
-        x509 = self._x509_load_cert(
+        x509cert = self._x509_load_cert(
             oenginecons.FileLocations.OVIRT_ENGINE_PKI_ENGINE_CA_CERT,
         )
         self.dialog.note(
@@ -965,7 +965,7 @@ class Plugin(plugin.PluginBase):
                 fingerprint=re.sub(
                     r'(..)',
                     r':\1',
-                    x509.get_fingerprint(md='sha1'),
+                    x509cert.get_fingerprint(md='sha1'),
                 )[1:],
             )
         )
